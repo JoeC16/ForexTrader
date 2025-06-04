@@ -10,60 +10,42 @@ BASE_URL = "https://www.alphavantage.co/query"
 
 PAIRS = [
     ("USD", "EUR"), ("USD", "GBP"), ("USD", "JPY"), ("USD", "AUD"),
-    ("EUR", "GBP"), ("EUR", "JPY"), ("EUR", "AUD"),
-    ("GBP", "JPY"), ("GBP", "AUD"), ("AUD", "JPY")
+    ("EUR", "USD"), ("GBP", "USD"), ("JPY", "USD"), ("AUD", "USD")
 ]
 
 def fetch_rates(base: str, quote: str) -> list:
     url = f"{BASE_URL}?function=FX_DAILY&from_symbol={base}&to_symbol={quote}&apikey={API_KEY}&outputsize=compact"
-    try:
-        res = requests.get(url).json()
-        if "Time Series FX (Daily)" not in res:
-            raise ValueError("Missing FX time series")
-        series = res["Time Series FX (Daily)"]
-        prices = [float(v["4. close"]) for k, v in sorted(series.items())][-30:]
-        if len(prices) < 20:
-            raise ValueError("Not enough data")
-        return prices
-    except Exception as e:
-        raise RuntimeError(f"{base}/{quote} historical data error: {e}")
+    res = requests.get(url).json()
+    series = res.get("Time Series FX (Daily)", {})
+    prices = [float(v["4. close"]) for k, v in sorted(series.items())][-30:]
+    if len(prices) < 20:
+        raise ValueError("Not enough data")
+    return prices
 
 def fetch_live(base: str, quote: str) -> float:
     url = f"{BASE_URL}?function=CURRENCY_EXCHANGE_RATE&from_currency={base}&to_currency={quote}&apikey={API_KEY}"
-    try:
-        res = requests.get(url).json()
-        return float(res["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
-    except Exception as e:
-        raise RuntimeError(f"{base}/{quote} live rate error: {e}")
+    res = requests.get(url).json()
+    return float(res["Realtime Currency Exchange Rate"]["5. Exchange Rate"])
 
 def compute_indicators(prices: list[float]) -> dict:
     s = pd.Series(prices)
     sma5 = s.rolling(5).mean().iloc[-1]
     sma20 = s.rolling(20).mean().iloc[-1]
-
     delta = s.diff()
     gain = delta.clip(lower=0).rolling(14).mean()
     loss = -delta.clip(upper=0).rolling(14).mean()
     rs = gain / loss
     rsi = 100 - (100 / (1 + rs)).iloc[-1]
-
     macd = s.ewm(span=12, adjust=False).mean() - s.ewm(span=26, adjust=False).mean()
     signal = macd.ewm(span=9, adjust=False).mean()
     macd_hist = (macd - signal).iloc[-1]
-
-    return {
-        "sma5": sma5,
-        "sma20": sma20,
-        "rsi": rsi,
-        "macd_hist": macd_hist
-    }
+    return {"sma5": sma5, "sma20": sma20, "rsi": rsi, "macd_hist": macd_hist}
 
 def generate_trade(base: str, quote: str) -> dict:
     try:
         prices = fetch_rates(base, quote)
         live = fetch_live(base, quote)
         ind = compute_indicators(prices)
-
         entry = live
         action = reason = ""
         confidence = 1
@@ -101,23 +83,18 @@ def generate_trade(base: str, quote: str) -> dict:
             "reason": reason,
             "reward_risk": rr_ratio
         }
-    except Exception as e:
-        st.warning(f"⚠️ Skipped {base}/{quote}: {e}")
+    except:
         return None
 
 # Streamlit UI
 st.set_page_config(page_title="Forex Trade Scanner", page_icon="📡")
-st.title("📡 Top 3 Forex Trade Setups")
-st.caption("Live setups with Entry, TP, SL and confidence score (1–5)")
+st.title("📡 Top 3 Forex Trade Setups (Clean)")
+st.caption("Using only supported pairs via Alpha Vantage")
 
 if st.button("🔍 Scan Market Now"):
-    with st.spinner("Fetching data and analyzing..."):
-        results = []
-        for base, quote in PAIRS:
-            trade = generate_trade(base, quote)
-            if trade:
-                results.append(trade)
-
+    with st.spinner("Scanning USD-based major pairs..."):
+        results = [generate_trade(b, q) for b, q in PAIRS]
+        results = [r for r in results if r]
         top3 = sorted(results, key=lambda x: -x["confidence"])[:3]
 
         if not top3:
