@@ -1,20 +1,31 @@
 import pandas as pd
 import yfinance as yf
 from datetime import timedelta
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, send_file, render_template_string
 import os
 import io
 
 app = Flask(__name__)
 
+# Simple HTML form template
+HTML_FORM = '''
+<!doctype html>
+<title>Congress Trade Price Enricher</title>
+<h2>📄 Upload your trades CSV file</h2>
+<form method=post enctype=multipart/form-data action="/enrich">
+  <input type=file name=file>
+  <input type=submit value="Enrich and Download">
+</form>
+'''
+
 @app.route("/")
-def home():
-    return "📈 Congress Trade Price Enricher is running!"
+def form():
+    return render_template_string(HTML_FORM)
 
 @app.route("/enrich", methods=["POST"])
 def enrich_file():
     if "file" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
+        return "❌ No file uploaded", 400
 
     file = request.files["file"]
     df = pd.read_csv(file)
@@ -52,4 +63,5 @@ def enrich_file():
     return send_file(output, mimetype='text/csv', as_attachment=True, download_name='enriched_trades.csv')
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
