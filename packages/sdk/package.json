@@ -1,0 +1,20 @@
+{
+  "type": "module",
+  "name": "@neuralrender/sdk",
+  "version": "0.1.0",
+  "description": "NeuralRender AI personalization SDK",
+  "main": "dist/collect.js",
+  "scripts": {
+    "build": "rollup -c",
+    "build:watch": "rollup -c --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "rollup": "^4.18.0",
+    "tslib": "^2.6.3",
+    "typescript": "^5.5.4"
+  }
+}
