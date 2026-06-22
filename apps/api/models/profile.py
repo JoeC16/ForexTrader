@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
 
@@ -9,6 +9,8 @@ class CTAStyle(BaseModel):
 
 
 class RenderingProfile(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
     archetype: str = "unknown"
     confidence: float = 0.0
     cta_style: CTAStyle = CTAStyle()

@@ -1,13 +1,26 @@
-from fastapi import APIRouter, HTTPException
-from apps.api.db.connection import get_pool
+from fastapi import APIRouter, Depends, HTTPException
 
-router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
+from apps.api.db.connection import get_pool
+from apps.api.routers.deps import require_internal_secret
+
+router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"], dependencies=[Depends(require_internal_secret)])
 
 
 @router.get("/sites/{site_id}/overview")
-async def site_overview(site_id: str):
+async def site_overview(site_id: str, owner_email: str):
     pool = await get_pool()
     async with pool.acquire() as conn:
+        owns = await conn.fetchval(
+            """
+            SELECT 1 FROM sites s JOIN users u ON u.id = s.owner_id
+            WHERE s.id = $1 AND u.email = $2 AND s.deleted_at IS NULL
+            """,
+            site_id,
+            owner_email,
+        )
+        if not owns:
+            raise HTTPException(status_code=404, detail="Site not found")
+
         total = await conn.fetchval(
             "SELECT COUNT(*) FROM visitor_profiles WHERE site_id=$1", site_id
         )

@@ -9,16 +9,26 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
 
 from apps.api.db.connection import close_pool
+from apps.api.rate_limit import limiter
 from apps.api.routers import events, profiles, sites, dashboard
 
 app = FastAPI(title="NeuralRender API", version="0.1.0")
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# No cookies are used anywhere in this API (auth is via X-Site-Key / X-Internal-Secret
+# headers), so allow_credentials stays False — this lets the SDK call /events and
+# /profile from any customer domain while the dashboard/site routes stay locked
+# behind the internal secret regardless of origin.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
